@@ -1,0 +1,110 @@
+<!DOCTYPE html>
+<html lang="el">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Barcode URL Scanner</title>
+    <script src="https://unpkg.com"></script>
+    <style>
+        body { font-family: Arial, sans-serif; text-align: center; margin: 20px; background-color: #f4f4f9; }
+        #reader { width: 100%; max-width: 500px; margin: 0 auto; border: 2px solid #333; border-radius: 8px; background: white; }
+        #result { margin-top: 20px; font-size: 1.2em; font-weight: bold; color: #2c3e50; }
+    </style>
+</head>
+<body>
+
+    <h1>Barcode to URL Scanner</h1>
+    <p>Κρατήστε το barcode EAN-128 μπροστά στην κάμερα</p>
+    
+    <div id="reader"></div>
+    <div id="result">Φόρτωση λίστας...</div>
+
+    <script>
+        // === ΚΑΝΕ COPY-PASTE ΚΑΙ ΤΙΣ 400 ΣΤΗΛΕΣ ΣΟΥ ΑΠΟ ΤΟ EXCEL ΕΔΩ ===
+        const rawExcelText = `
+5200252690010	https://www.efthymiadis.gr/inst/redestos/gallery///KaisoSorbie_500gr_EYTH_1025.pdf
+5200252690027	https://www.efthymiadis.gr/inst/redestos/gallery///KaisoSorbie_500gr_EYTH_1025.pdf
+5200252690034	https://www.efthymiadis.gr/inst/redestos/gallery///KaisoSorbie_500gr_EYTH_1025.pdf
+5200252690041	https://www.efthymiadis.gr/inst/redestos/gallery///KaisoSorbie_500gr_EYTH_1025.pdf
+5200252690058	https://www.efthymiadis.gr/inst/redestos/gallery///KaisoSorbie_500gr_EYTH_1025.pdf
+5200252690065	https://www.efthymiadis.gr/inst/redestos/gallery///PROFIL_20SG_10GR%20_60X100_0525.pdf
+5200252690072	https://www.efthymiadis.gr/inst/redestos/gallery///PROFIL_20SG_10GR%20_60X100_0525.pdf
+5200252690089	https://www.efthymiadis.gr/inst/redestos/gallery///PROFIL_20SG_10GR%20_60X100_0525.pdf
+5200252690096	https://www.efthymiadis.gr/inst/redestos/gallery///PROFIL_20SG_10GR%20_60X100_0525.pdf
+5200252690102	https://www.efthymiadis.gr/inst/redestos/gallery///PROFIL_20SG_10GR%20_60X100_0525.pdf
+5200252690119	https://www.efthymiadis.gr/inst/redestos/gallery///PROFIL_20SG_10GR%20_60X100_0525.pdf
+5200252690126	https://www.efthymiadis.gr/inst/redestos/gallery///PROFIL%20Extra%205%20SL%201%20LITR%20270X140%201025%2090126%20QRT%201025.pdf
+5200252690133	https://www.efthymiadis.gr/inst/redestos/gallery///PROFIL%20Extra%205%20SL%201%20LITR%20270X140%201025%2090126%20QRT%201025.pdf
+5200252690140	https://www.efthymiadis.gr/inst/redestos/gallery///PROFIL%20Extra%205%20SL%201%20LITR%20270X140%201025%2090126%20QRT%201025.pdf
+5200252690157	https://www.efthymiadis.gr/inst/redestos/gallery///PROFIL%20Extra%205%20SL%201%20LITR%20270X140%201025%2090126%20QRT%201025.pdf
+5200252690164	https://www.efthymiadis.gr/inst/redestos/gallery///PROFIL%20Extra%205%20SL%201%20LITR%20270X140%201025%2090126%20QRT%201025.pdf
+5200252690171	https://www.efthymiadis.gr/inst/redestos/gallery///CARNADINE_1L_1025.pdf
+5200252690188	https://www.efthymiadis.gr/inst/redestos/gallery///CARNADINE_1L_1025.pdf
+5200252690195	https://www.efthymiadis.gr/inst/redestos/gallery///CARNADINE_1L_1025.pdf
+5200252690201	https://www.efthymiadis.gr/inst/redestos/gallery///CARNADINE_1L_1025.pdf
+5200252690218	https://www.efthymiadis.gr/inst/redestos/gallery///TEPPEKI%2050WG%20500GR%20290X153_0426.pdf
+5200252690225	https://www.efthymiadis.gr/inst/redestos/gallery///TEPPEKI%2050WG%20500GR%20290X153_0426.pdf
+5200252690232	https://www.efthymiadis.gr/inst/redestos/gallery///TEPPEKI%2050WG%20500GR%20290X153_0426.pdf
+5200252690249	https://www.efthymiadis.gr/inst/redestos/gallery///TEPPEKI%2050WG%20500GR%20290X153_0426.pdf
+5200252690256	https://www.efthymiadis.gr/inst/redestos/gallery///TEPPEKI%2050WG%20500GR%20290X153_0426.pdf
+5200252690263	https://www.efthymiadis.gr/inst/redestos/gallery///TEPPEKI%2050WG%20500GR%20290X153_0426.pdf
+        `;
+        // === ΜΗΝ ΣΒΗΣΕΙΣ ΤΟ ΣΥΜΒΟΛΟ ` ΠΑΝΩ ΚΑΙ ΚΑΤΩ ===
+
+        let barcodeMap = {};
+
+        const lines = rawExcelText.split('\n');
+        for (let i = 0; i < lines.length; i++) {
+            const currentLine = lines[i].trim();
+            if (!currentLine) continue;
+
+            const columns = currentLine.split('\t');
+            if (columns.length >= 2) {
+                const code = columns[0].trim();
+                let url = columns[1].trim();
+                
+                if (code && url && !code.toLowerCase().includes('barcode')) {
+                    if (url.toLowerCase().startsWith('www.')) {
+                        url = 'https://' + url;
+                    }
+                    barcodeMap[code] = url;
+                }
+            }
+        }
+
+        const totalCount = Object.keys(barcodeMap).length;
+        if (totalCount > 0) {
+            document.getElementById('result').style.color = "green";
+            document.getElementById('result').innerText = `Επιτυχία! Φορτώθηκαν ${totalCount} barcodes. Εκκίνηση κάμερας...`;
+            startScanner();
+        } else {
+            document.getElementById('result').style.color = "red";
+            document.getElementById('result').innerHTML = "Δεν βρέθηκαν δεδομένα!";
+        }
+
+        function startScanner() {
+            let html5QrcodeScanner = new Html5QrcodeScanner("reader", { 
+                fps: 10, 
+                qrbox: { width: 280, height: 160 },
+                experimentalFeatures: { useBarCodeDetectorIfSupported: true }
+            });
+            html5QrcodeScanner.render(onScanSuccess, onScanFailure);
+        }
+
+        function onScanSuccess(decodedText) {
+            const cleanBarcode = decodedText.trim();
+            document.getElementById('result').style.color = "#2c3e50";
+            document.getElementById('result').innerText = `Barcode: ${cleanBarcode}`;
+            
+            if (barcodeMap[cleanBarcode]) {
+                document.getElementById('result').innerHTML += "<br><span style='color:green;'>Βρέθηκε! Ανακατεύθυνση...</span>";
+                window.location.href = barcodeMap[cleanBarcode];
+            } else {
+                document.getElementById('result').innerHTML += "<br><span style='color:red;'>Δεν υπάρχει στη λίστα!</span>";
+            }
+        }
+
+        function onScanFailure(error) { }
+    </script>
+</body>
+</html>
