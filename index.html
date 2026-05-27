@@ -83,12 +83,34 @@
         }
 
         function startScanner() {
-            let html5QrcodeScanner = new Html5QrcodeScanner("reader", { 
+            // Δημιουργία του scanner μέσα στο div "reader"
+            const html5QrCode = new Html5Qrcode("reader");
+            
+            const config = { 
                 fps: 10, 
                 qrbox: { width: 280, height: 160 },
                 experimentalFeatures: { useBarCodeDetectorIfSupported: true }
+            };
+
+            // Αναγκαστική εκκίνηση με την ΠΙΣΩ κάμερα (facingMode: "environment")
+            html5QrCode.start(
+                { facingMode: "environment" }, 
+                config, 
+                onScanSuccess,
+                (errorMessage) => {
+                    // Αγνοούμε τα απλά σφάλματα εστίασης κατά το σκανάρισμα
+                }
+            )
+            .then(() => {
+                document.getElementById('result').style.color = "green";
+                document.getElementById('result').innerText = "Η κάμερα άνοιξε! Σκανάρετε το barcode.";
+            })
+            .catch(err => {
+                // Αν αποτύχει, εμφανίζει το πραγματικό σφάλμα στην οθόνη για να καταλάβουμε τι φταίει
+                document.getElementById('result').style.color = "red";
+                document.getElementById('result').innerHTML = "Σφάλμα κάμερας: <br><small>" + err + "</small>";
+                console.error(err);
             });
-            html5QrcodeScanner.render(onScanSuccess, onScanFailure);
         }
 
         function onScanSuccess(decodedText) {
