@@ -4,23 +4,27 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Barcode URL Scanner</title>
-    <script src="https://unpkg.com"></script>
+    <script src="https://unpkg.com/html5-qrcode"></script>
     <style>
         body { font-family: Arial, sans-serif; text-align: center; margin: 20px; background-color: #f4f4f9; }
-        #reader { width: 100%; max-width: 500px; margin: 0 auto; border: 2px solid #333; border-radius: 8px; background: white; }
+        #reader { width: 100%; max-width: 500px; margin: 0 auto; border: 2px solid #333; border-radius: 8px; background: white; min-height: 250px; display: none; }
         #result { margin-top: 20px; font-size: 1.2em; font-weight: bold; color: #2c3e50; }
+        .btn { background-color: #2ecc71; color: white; border: none; padding: 15px 30px; font-size: 1.2em; border-radius: 5px; cursor: pointer; margin-top: 20px; font-weight: bold; }
     </style>
 </head>
 <body>
 
     <h1>Barcode to URL Scanner</h1>
-    <p>Κρατήστε το barcode EAN-128 μπροστά στην κάμερα</p>
+    <p>Πατήστε το κουμπί για να ανοίξει η κάμερα</p>
     
+    <!-- Μεγάλο κουμπί για χειροκίνητη εκκίνηση (Λύνει το μπλοκάρισμα του Browser) -->
+    <button id="start-btn" class="btn" onclick="startScanner()">Εκκίνηση Κάμερας</button>
+
     <div id="reader"></div>
     <div id="result">Φόρτωση λίστας...</div>
 
     <script>
-        // === ΚΑΝΕ COPY-PASTE ΚΑΙ ΤΙΣ 400 ΣΤΗΛΕΣ ΣΟΥ ΑΠΟ ΤΟ EXCEL ΕΔΩ ===
+        // === ΚΑΝΕ PASTE ΤΑ ΔΕΔΟΜΕΝΑ ΣΟΥ ΑΠΟ ΤΟ EXCEL ΕΔΩ ===
         const rawExcelText = `
 5200252690010	https://www.efthymiadis.gr/inst/redestos/gallery///KaisoSorbie_500gr_EYTH_1025.pdf
 5200252690027	https://www.efthymiadis.gr/inst/redestos/gallery///KaisoSorbie_500gr_EYTH_1025.pdf
@@ -53,6 +57,7 @@
 
         let barcodeMap = {};
 
+        // Ανάγνωση δεδομένων
         const lines = rawExcelText.split('\n');
         for (let i = 0; i < lines.length; i++) {
             const currentLine = lines[i].trim();
@@ -75,41 +80,42 @@
         const totalCount = Object.keys(barcodeMap).length;
         if (totalCount > 0) {
             document.getElementById('result').style.color = "green";
-            document.getElementById('result').innerText = `Επιτυχία! Φορτώθηκαν ${totalCount} barcodes. Εκκίνηση κάμερας...`;
-            startScanner();
+            document.getElementById('result').innerText = `Επιτυχία! Φορτώθηκαν ${totalCount} barcodes.`;
         } else {
             document.getElementById('result').style.color = "red";
-            document.getElementById('result').innerHTML = "Δεν βρέθηκαν δεδομένα!";
+            document.getElementById('result').innerHTML = "Δεν βρέθηκαν δεδομένα στο Excel!";
         }
 
         function startScanner() {
-            // Δημιουργία του scanner μέσα στο div "reader"
+            // Κρύβουμε το κουμπί και εμφανίζουμε το πλαίσιο της κάμερας
+            document.getElementById('start-btn').style.display = "none";
+            document.getElementById('reader').style.display = "block";
+            document.getElementById('result').style.color = "#2c3e50";
+            document.getElementById('result').innerText = "Προετοιμασία κάμερας...";
+
             const html5QrCode = new Html5Qrcode("reader");
             
             const config = { 
                 fps: 10, 
                 qrbox: { width: 280, height: 160 },
-                experimentalFeatures: { useBarCodeDetectorIfSupported: true }
+                // CRITICAL FIX: Απενεργοποίηση του πειραματικού detector που κολλάει στα κινητά
+                experimentalFeatures: { useBarCodeDetectorIfSupported: false }
             };
 
-            // Αναγκαστική εκκίνηση με την ΠΙΣΩ κάμερα (facingMode: "environment")
+            // Άνοιγμα της πίσω κάμερας
             html5QrCode.start(
                 { facingMode: "environment" }, 
                 config, 
                 onScanSuccess,
-                (errorMessage) => {
-                    // Αγνοούμε τα απλά σφάλματα εστίασης κατά το σκανάρισμα
-                }
+                (errorMessage) => { /* Παράκαμψη λαθών εστίασης */ }
             )
             .then(() => {
                 document.getElementById('result').style.color = "green";
-                document.getElementById('result').innerText = "Η κάμερα άνοιξε! Σκανάρετε το barcode.";
+                document.getElementById('result').innerText = "Η κάμερα είναι ζωντανή! Σκανάρετε το Barcode.";
             })
             .catch(err => {
-                // Αν αποτύχει, εμφανίζει το πραγματικό σφάλμα στην οθόνη για να καταλάβουμε τι φταίει
                 document.getElementById('result').style.color = "red";
-                document.getElementById('result').innerHTML = "Σφάλμα κάμερας: <br><small>" + err + "</small>";
-                console.error(err);
+                document.getElementById('result').innerHTML = "Σφάλμα: " + err;
             });
         }
 
@@ -125,8 +131,6 @@
                 document.getElementById('result').innerHTML += "<br><span style='color:red;'>Δεν υπάρχει στη λίστα!</span>";
             }
         }
-
-        function onScanFailure(error) { }
     </script>
 </body>
 </html>
