@@ -31,7 +31,7 @@
             <label for="zoom-range"><strong>Μεγέθυνση (Zoom):</strong></label>
             <input type="range" id="zoom-range" class="zoom-slider" min="1" max="5" step="0.1" value="1">
         </div>
-        <div class="control-row">
+        <div class="control-row" id="torch-row" style="display:none;">
             <button id="torch-btn" class="torch-btn" onclick="toggleTorch()">🔦 Άναμμα Φακού</button>
         </div>
     </div>
@@ -220,6 +220,7 @@
 5200252691895	OPTERA PRO 200CC
 5200252691901	OPTERA PRO 500CC
 5200252691918	https://www.efthymiadis.gr/inst/redestos/gallery///BOTANIGARD%20107%20OD_BOOKLET%20_6X76X127_0526.pdf
+
         `;
         // ===============================================
 
@@ -261,11 +262,11 @@
             html5QrCode = new Html5Qrcode("reader");
             
             const config = { 
-                fps: 20, // Περισσότερα frames για γρήγορη απόκριση
+                fps: 20, 
                 qrbox: function(viewfinderWidth, viewfinderHeight) {
-                    // Σχετικά μικρότερο κουτί εστίασης για να αναγκάζει το χρήστη να κεντράρει με ακρίβεια
-                    const size = Math.min(viewfinderWidth * 0.75, 250);
-                    return { width: size, height: Math.floor(size * 0.5) };
+                    const width = Math.floor(viewfinderWidth * 0.85); 
+                    const height = Math.floor(viewfinderHeight * 0.25); 
+                    return { width: width, height: height };
                 },
                 aspectRatio: 1.777778,
                 experimentalFeatures: { useBarCodeDetectorIfSupported: false }
@@ -279,67 +280,75 @@
             )
             .then(() => {
                 document.getElementById('result').style.color = "green";
-                document.getElementById('result').innerText = "Η κάμερα είναι ζωντανή! Χρησιμοποιήστε το Zoom για μικρά barcodes.";
-                document.getElementById('controls').style.display = "block";
+                document.getElementById('result').innerText = "Η κάμερα είναι ζωντανή! Σκανάρετε το Barcode.";
                 
-                setupAdvancedFeatures();
+                // Εκτέλεση των προηγμένων ρυθμίσεων με ασφάλεια (Timeout)
+                setTimeout(setupAdvancedFeatures, 500);
             })
             .catch(err => {
                 document.getElementById('result').style.color = "red";
-                document.getElementById('result').innerHTML = "Σφάλμα: " + err;
+                document.getElementById('result').innerHTML = "Σφάλμα κάμερας: " + err;
             });
         }
 
         function setupAdvancedFeatures() {
             try {
                 const track = html5QrCode.getRunningTrack();
-                const capabilities = track.getCapabilities();
+                if (!track) return;
                 
-                // Ενεργοποίηση συνεχούς εστίασης
-                if (capabilities.focusMode && capabilities.focusMode.includes('continuous')) {
-                    track.applyConstraints({ advanced: [{ focusMode: "continuous" }] });
+                const capabilities = (typeof track.getCapabilities === 'function') ? track.getCapabilities() : {};
+                
+                // Δείχνουμε το γενικό πλαίσιο ρυθμίσεων αν υποστηρίζεται έστω και ένα χαρακτηριστικό
+                if (capabilities.focusMode || capabilities.zoom || capabilities.torch) {
+                    document.getElementById('controls').style.display = "block";
                 }
 
-                // Ρύθμιση του Zoom αν υποστηρίζεται από το κινητό
+                // 1. Συνεχής εστίαση
+                if (capabilities.focusMode && capabilities.focusMode.includes('continuous')) {
+                    track.applyConstraints({ advanced: [{ focusMode: "continuous" }] }).catch(e => {});
+                }
+
+                // 2. Μπάρα Zoom
                 if (capabilities.zoom) {
                     const zoomRow = document.getElementById('zoom-row');
                     const zoomRange = document.getElementById('zoom-range');
                     
-                    zoomRange.min = capabilities.zoom.min;
-                    zoomRange.max = capabilities.zoom.max;
+                    zoomRange.min = capabilities.zoom.min || 1;
+                    zoomRange.max = capabilities.zoom.max || 5;
                     zoomRange.step = capabilities.zoom.step || 0.1;
-                    zoomRange.value = capabilities.zoom.min;
+                    zoomRange.value = capabilities.zoom.min || 1;
                     
                     zoomRow.style.display = "flex";
                     
                     zoomRange.addEventListener('input', (e) => {
                         track.applyConstraints({
                             advanced: [{ zoom: parseFloat(e.target.value) }]
-                        });
+                        }).catch(err => {});
                     });
                 }
+
+                // 3. Κουμπί Φακού
+                if (capabilities.torch) {
+                    document.getElementById('torch-row').style.style.display = "block";
+                }
             } catch (e) {
-                console.log("Προηγμένες λειτουργίες κάμερας μη διαθέσιμες σε αυτή τη συσκευή.", e);
+                console.log("Τα advanced features δεν υποστηρίζονται από τη συσκευή/browser.", e);
             }
         }
 
         function toggleTorch() {
             try {
                 const track = html5QrCode.getRunningTrack();
-                const capabilities = track.getCapabilities();
-                
-                if (capabilities.torch) {
+                if (track) {
                     isTorchOn = !isTorchOn;
                     track.applyConstraints({
                         advanced: [{ torch: isTorchOn }]
                     }).then(() => {
                         document.getElementById('torch-btn').innerText = isTorchOn ? "❌ Σβήσιμο Φακού" : "💡 Άναμμα Φακού";
-                    });
-                } else {
-                    alert("Ο φακός δεν υποστηρίζεται ή δεν είναι διαθέσιμος στον browser της συσκευής σας.");
+                    }).catch(e => { alert("Ο φακός μπλοκαρίστηκε."); });
                 }
             } catch (e) {
-                alert("Αδυναμία ελέγχου του φακού.");
+                console.log(e);
             }
         }
 
