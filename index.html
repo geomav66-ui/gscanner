@@ -7,32 +7,37 @@
     <script src="https://unpkg.com"></script>
     <style>
         body { font-family: Arial, sans-serif; text-align: center; margin: 20px; background-color: #f4f4f9; }
-        #reader { width: 100%; max-width: 500px; margin: 0 auto; border: 2px solid #333; border-radius: 8px; background: white; min-height: 250px; display: none; }
+        
+        /* Το παράθυρο της κάμερας - Καθαρό, χωρίς εσωτερικά σπασμένα κουτιά */
+        #reader { width: 100%; max-width: 450px; margin: 0 auto; border: 2px solid #333; border-radius: 8px; background: black; overflow: hidden; position: relative; }
+        
+        /* Δικό μας, χειροκίνητο CSS πλαίσιο εστίασης στην οθόνη */
+        .custom-aim-box { position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); width: 80%; height: 80px; border: 2px dashed #2ecc71; border-radius: 4px; pointer-events: none; box-shadow: 0 0 0 9999px rgba(0, 0, 0, 0.4); display: none; z-index: 10; }
+        
         #result { margin-top: 20px; font-size: 1.2em; font-weight: bold; color: #2c3e50; }
         .btn { background-color: #2ecc71; color: white; border: none; padding: 15px 30px; font-size: 1.2em; border-radius: 5px; cursor: pointer; margin-top: 20px; font-weight: bold; }
-        .controls-container { max-width: 500px; margin: 15px auto; display: none; background: white; padding: 15px; border-radius: 8px; border: 1px solid #ddd; }
+        .controls-container { max-width: 450px; margin: 15px auto; display: none; background: white; padding: 15px; border-radius: 8px; border: 1px solid #ddd; }
         .control-row { margin: 10px 0; display: flex; align-items: center; justify-content: space-between; }
         .zoom-slider { width: 70%; }
-        .torch-btn { background-color: #34495e; color: white; border: none; padding: 10px 20px; border-radius: 5px; cursor: pointer; font-weight: bold; width: 100%; }
     </style>
 </head>
 <body>
 
     <h1>Barcode to URL Scanner</h1>
-    <p>Ιδανικό για μικρά και μεγάλα barcodes</p>
+    <p>Κεντράρετε το barcode στο πράσινο πλαίσιο</p>
     
     <button id="start-btn" class="btn" onclick="startScanner()">Εκκίνηση Κάμερας</button>
 
-    <div id="reader"></div>
+    <div id="reader">
+        <!-- Το δικό μας σκόπευτρο -->
+        <div id="aim-box" class="custom-aim-box"></div>
+    </div>
 
-    <!-- Χειριστήρια για Ζουμ και Φλας -->
+    <!-- Χειριστήριο Zoom -->
     <div id="controls" class="controls-container">
         <div class="control-row" id="zoom-row" style="display:none;">
             <label for="zoom-range"><strong>Μεγέθυνση (Zoom):</strong></label>
             <input type="range" id="zoom-range" class="zoom-slider" min="1" max="5" step="0.1" value="1">
-        </div>
-        <div class="control-row" id="torch-row" style="display:none;">
-            <button id="torch-btn" class="torch-btn" onclick="toggleTorch()">🔦 Άναμμα Φακού</button>
         </div>
     </div>
 
@@ -220,13 +225,11 @@
 5200252691895	OPTERA PRO 200CC
 5200252691901	OPTERA PRO 500CC
 5200252691918	https://www.efthymiadis.gr/inst/redestos/gallery///BOTANIGARD%20107%20OD_BOOKLET%20_6X76X127_0526.pdf
-
         `;
         // ===============================================
 
         let barcodeMap = {};
         let html5QrCode = null;
-        let isTorchOn = false;
 
         // Ανάγνωση δεδομένων Excel
         const lines = rawExcelText.split('\n');
@@ -235,8 +238,8 @@
             if (!currentLine) continue;
             const columns = currentLine.split('\t');
             if (columns.length >= 2) {
-                const code = columns[0].trim();
-                let url = columns[1].trim();
+                const code = columns.trim();
+                let url = columns.trim();
                 if (code && url && !code.toLowerCase().includes('barcode')) {
                     if (url.toLowerCase().startsWith('www.')) url = 'https://' + url;
                     barcodeMap[code] = url;
@@ -255,20 +258,15 @@
 
         function startScanner() {
             document.getElementById('start-btn').style.display = "none";
-            document.getElementById('reader').style.display = "block";
             document.getElementById('result').style.color = "#2c3e50";
-            document.getElementById('result').innerText = "Προετοιμασία κάμερας...";
+            document.getElementById('result').innerText = "Άναμμα κάμερας...";
 
             html5QrCode = new Html5Qrcode("reader");
             
+            // Απλό config, χωρίς τη συνάρτηση qrbox που προκαλούσε το crash
             const config = { 
-                fps: 20, 
-                qrbox: function(viewfinderWidth, viewfinderHeight) {
-                    const width = Math.floor(viewfinderWidth * 0.85); 
-                    const height = Math.floor(viewfinderHeight * 0.25); 
-                    return { width: width, height: height };
-                },
-                aspectRatio: 1.777778,
+                fps: 20,
+                aspectRatio: 1.333333, // Standard 4:3 για μέγιστη συμβατότητα με όλες τις κάμερες
                 experimentalFeatures: { useBarCodeDetectorIfSupported: false }
             };
 
@@ -276,14 +274,17 @@
                 { facingMode: "environment" }, 
                 config, 
                 onScanSuccess,
-                (errorMessage) => { /* Παράκαμψη λαθών */ }
+                (errorMessage) => { /* Παράκαμψη απλών λαθών */ }
             )
             .then(() => {
                 document.getElementById('result').style.color = "green";
-                document.getElementById('result').innerText = "Η κάμερα είναι ζωντανή! Σκανάρετε το Barcode.";
+                document.getElementById('result').innerText = "Η κάμερα λειτουργεί! Σκανάρετε.";
                 
-                // Εκτέλεση των προηγμένων ρυθμίσεων με ασφάλεια (Timeout)
-                setTimeout(setupAdvancedFeatures, 500);
+                // Εμφανίζουμε το δικό μας πράσινο σκόπευτρο
+                document.getElementById('aim-box').style.display = "block";
+                
+                // Ενεργοποίηση Zoom μετά από λίγο
+                setTimeout(setupZoom, 400);
             })
             .catch(err => {
                 document.getElementById('result').style.color = "red";
@@ -291,30 +292,26 @@
             });
         }
 
-        function setupAdvancedFeatures() {
+        function setupZoom() {
             try {
                 const track = html5QrCode.getRunningTrack();
                 if (!track) return;
                 
                 const capabilities = (typeof track.getCapabilities === 'function') ? track.getCapabilities() : {};
                 
-                // Δείχνουμε το γενικό πλαίσιο ρυθμίσεων αν υποστηρίζεται έστω και ένα χαρακτηριστικό
-                if (capabilities.focusMode || capabilities.zoom || capabilities.torch) {
-                    document.getElementById('controls').style.display = "block";
-                }
-
-                // 1. Συνεχής εστίαση
+                // Ενεργοποίηση συνεχούς εστίασης
                 if (capabilities.focusMode && capabilities.focusMode.includes('continuous')) {
                     track.applyConstraints({ advanced: [{ focusMode: "continuous" }] }).catch(e => {});
                 }
 
-                // 2. Μπάρα Zoom
+                // Ρύθμιση της μπάρας Zoom
                 if (capabilities.zoom) {
+                    document.getElementById('controls').style.display = "block";
                     const zoomRow = document.getElementById('zoom-row');
                     const zoomRange = document.getElementById('zoom-range');
                     
                     zoomRange.min = capabilities.zoom.min || 1;
-                    zoomRange.max = capabilities.zoom.max || 5;
+                    zoomRange.max = capabilities.zoom.max || 4;
                     zoomRange.step = capabilities.zoom.step || 0.1;
                     zoomRange.value = capabilities.zoom.min || 1;
                     
@@ -326,29 +323,8 @@
                         }).catch(err => {});
                     });
                 }
-
-                // 3. Κουμπί Φακού
-                if (capabilities.torch) {
-                    document.getElementById('torch-row').style.style.display = "block";
-                }
             } catch (e) {
-                console.log("Τα advanced features δεν υποστηρίζονται από τη συσκευή/browser.", e);
-            }
-        }
-
-        function toggleTorch() {
-            try {
-                const track = html5QrCode.getRunningTrack();
-                if (track) {
-                    isTorchOn = !isTorchOn;
-                    track.applyConstraints({
-                        advanced: [{ torch: isTorchOn }]
-                    }).then(() => {
-                        document.getElementById('torch-btn').innerText = isTorchOn ? "❌ Σβήσιμο Φακού" : "💡 Άναμμα Φακού";
-                    }).catch(e => { alert("Ο φακός μπλοκαρίστηκε."); });
-                }
-            } catch (e) {
-                console.log(e);
+                console.log("Το Zoom δεν υποστηρίζεται στο πρόγραμμα περιήγησης αυτής της συσκευής.", e);
             }
         }
 
