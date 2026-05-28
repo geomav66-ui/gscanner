@@ -239,7 +239,7 @@
             document.getElementById('result').innerHTML = "Δεν βρέθηκαν δεδομένα στο Excel!";
         }
 
-                function startScanner() {
+                        function startScanner() {
             document.getElementById('start-btn').style.display = "none";
             document.getElementById('reader').style.display = "block";
             document.getElementById('result').style.color = "#2c3e50";
@@ -247,38 +247,40 @@
 
             const html5QrCode = new Html5Qrcode("reader");
             
-            // ΝΕΕΣ ΒΕΛΤΙΩΜΕΝΕΣ ΡΥΘΜΙΣΕΙΣ ΓΙΑ EAN-128
+            // Ρυθμίσεις πλαισίου (Μακρόστενο κουτί για EAN-128)
             const config = { 
-                fps: 15, // Αυξάνουμε τα frames για πιο γρήγορο "πιάσιμο"
+                fps: 15, 
                 qrbox: function(viewfinderWidth, viewfinderHeight) {
-                    // Κάνουμε το κουτί δυναμικό, πολύ φαρδύ και στενό (ιδανικό για μακρόστενα barcodes)
-                    const width = Math.floor(viewfinderWidth * 0.85); // Πιάνει το 85% του πλάτους της οθόνης
-                    const height = Math.floor(viewfinderHeight * 0.25); // Μόνο το 25% του ύψους
+                    const width = Math.floor(viewfinderWidth * 0.85); 
+                    const height = Math.floor(viewfinderHeight * 0.25); 
                     return { width: width, height: height };
                 },
-                aspectRatio: 1.777778, // Αναγκαστικό 16:9 για καλύτερη ανάλυση
-                experimentalFeatures: { 
-                    useBarCodeDetectorIfSupported: false 
-                }
+                aspectRatio: 1.777778,
+                experimentalFeatures: { useBarCodeDetectorIfSupported: false }
             };
 
-            // Εκκίνηση με βελτιωμένες οδηγίες κάμερας
+            // Εκκίνηση μόνο με την πίσω κάμερα για να μην μπερδεύεται η βιβλιοθήκη
             html5QrCode.start(
-                { 
-                    facingMode: "environment",
-                    // Ζητάμε από το κινητό τη μέγιστη δυνατή εστίαση και ανάλυση
-                    advanced: [{
-                        focusMode: "continuous", // Συνεχής αυτόματη εστίαση
-                        whiteBalanceMode: "continuous"
-                    }]
-                }, 
+                { facingMode: "environment" }, 
                 config, 
                 onScanSuccess,
                 (errorMessage) => { /* Παράκαμψη λαθών εστίασης */ }
             )
             .then(() => {
                 document.getElementById('result').style.color = "green";
-                document.getElementById('result').innerText = "Η κάμερα είναι ζωντανή! Κρατήστε το κινητό λίγο πιο μακριά αν θολώνει.";
+                document.getElementById('result').innerText = "Η κάμερα είναι ζωντανή! Σκανάρετε το barcode.";
+                
+                // Εφαρμογή της συνεχούς εστίασης (Focus) αφού ξεκινήσει η κάμερα
+                try {
+                    const track = html5QrCode.getRunningTrack();
+                    if (track && typeof track.applyConstraints === 'function') {
+                        track.applyConstraints({
+                            advanced: [{ focusMode: "continuous" }]
+                        }).catch(e => console.log("Η συνεχής εστίαση δεν υποστηρίζεται: ", e));
+                    }
+                } catch(focusError) {
+                    console.log("Αδυναμία εφαρμογής focus:", focusError);
+                }
             })
             .catch(err => {
                 document.getElementById('result').style.color = "red";
