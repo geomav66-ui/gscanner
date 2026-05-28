@@ -4,15 +4,15 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Barcode URL Scanner</title>
-    <!-- Χρήση της πιο σταθερής βιβλιοθήκης για ανάλυση στατικών εικόνων -->
-    <script src="https://unpkg.com"></script>
+    <!-- Εισαγωγή της επίσημης βιβλιοθήκης ZXing -->
+    <script src="https://unpkg.com/@zxing/library@latest"></script>
     <style>
         body { font-family: Arial, sans-serif; text-align: center; margin: 20px; background-color: #f4f4f9; }
         .container { max-width: 450px; margin: 30px auto; background: white; padding: 30px; border-radius: 12px; box-shadow: 0 4px 6px rgba(0,0,0,0.1); border: 1px solid #ddd; }
         #result { margin-top: 25px; font-size: 1.2em; font-weight: bold; color: #2c3e50; min-height: 50px; }
-        .upload-btn { background-color: #2ecc71; color: white; padding: 18px 30px; border: none; border-radius: 8px; cursor: pointer; font-size: 1.3em; font-weight: bold; width: 100%; box-shadow: 0 4px 6px rgba(46, 204, 113, 0.3); transition: background 0.2s; }
+        .upload-btn { background-color: #2ecc71; color: white; padding: 18px 30px; border: none; border-radius: 8px; cursor: pointer; font-size: 1.3em; font-weight: bold; width: 100%; box-shadow: 0 4px 6px rgba(46, 204, 113, 0.3); }
         .upload-btn:active { background-color: #27ae60; }
-        .preview-img { max-width: 100%; max-height: 150px; margin-top: 15px; border-radius: 4px; display: none; border: 1px solid #ccc; }
+        .preview-img { max-width: 100%; max-height: 200px; margin-top: 15px; border-radius: 4px; display: none; border: 1px solid #ccc; }
     </style>
 </head>
 <body>
@@ -21,14 +21,14 @@
         <h1>Barcode to URL Scanner</h1>
         <p>Βγάλτε μια φωτογραφία το barcode ή ανεβάστε μια έτοιμη εικόνα</p>
         
-        <!-- Κρυφό input που ενεργοποιεί την κάμερα του κινητού για λήψη φωτογραφίας -->
+        <!-- Input για λήψη φωτογραφίας ή επιλογή αρχείου -->
         <input type="file" id="barcode-file" accept="image/*" capture="environment" style="display:none;">
         
-        <!-- Μεγάλο κουμπί που πατιέται εύκολα -->
         <button onclick="document.getElementById('barcode-file').click()" class="upload-btn">
             📸 Φωτογράφιση Barcode
         </button>
 
+        <!-- Στοιχείο εικόνας που θα διαβάσει απευθείας η ZXing -->
         <img id="image-preview" class="preview-img" alt="Προεπισκόπηση">
         
         <div id="result">Φόρτωση λίστας...</div>
@@ -215,8 +215,8 @@
 5200252691888	www.efthymiadis.gr/inst/redestos/gallery///BOTIGA_1L_290X153_KN_0326.pdf
 5200252691895	OPTERA PRO 200CC
 5200252691901	OPTERA PRO 500CC
-5200252691918	https://www.efthymiadis.gr/inst/redestos/gallery///BOTANIGARD%20107%20OD_BOOKLET%20_6X76X127_0526.pdf 
-       `;
+5200252691918	https://www.efthymiadis.gr/inst/redestos/gallery///BOTANIGARD%20107%20OD_BOOKLET%20_6X76X127_0526.pdf
+        `;
         // ===============================================
 
         let barcodeMap = {};
@@ -228,8 +228,8 @@
             if (!currentLine) continue;
             const columns = currentLine.split('\t');
             if (columns.length >= 2) {
-                const code = columns[0].trim();
-                let url = columns[1].trim();
+                const code = columns.trim();
+                let url = columns.trim();
                 if (code && url && !code.toLowerCase().includes('barcode')) {
                     if (url.toLowerCase().startsWith('www.')) url = 'https://' + url;
                     barcodeMap[code] = url;
@@ -253,15 +253,10 @@
             const previewImg = document.getElementById('image-preview');
             const resultDiv = document.getElementById('result');
             
-            // Αρχικοποίηση του αναλυτή εικόνων της ZXing
+            // Αρχικοποίηση του επίσημου MultiFormat Reader για Browser
             const hints = new Map();
-            // Δηλώνουμε ότι ψάχνουμε όλα τα format (Code 128, EAN κλπ)
-            const formats = [ZXing.BarcodeFormat.CODE_128, ZXing.BarcodeFormat.EAN_13, ZXing.BarcodeFormat.EAN_8];
-            hints.set(ZXing.DecodeHintType.POSSIBLE_FORMATS, formats);
-            hints.set(ZXing.DecodeHintType.TRY_HARDER, true); // Εντατική αναζήτηση στην εικόνα
-            
-            const reader = new ZXing.MultiFormatReader();
-            reader.setHints(hints);
+            hints.set(ZXing.DecodeHintType.TRY_HARDER, true); // Εντατική αναζήτηση γραμμών
+            const codeReader = new ZXing.BrowserMultiFormatReader(hints);
 
             fileInput.addEventListener('change', e => {
                 if (e.target.files.length == 0) return;
@@ -270,46 +265,32 @@
                 resultDiv.innerText = "🔍 Ανάλυση φωτογραφίας...";
                 
                 const file = e.target.files[0];
-                
-                // Εμφάνιση προεπισκόπησης της φωτογραφίας
                 const readerURL = new FileReader();
+                
                 readerURL.onload = function(event) {
+                    // Εμφάνιση της εικόνας στην οθόνη
                     previewImg.src = event.target.result;
                     previewImg.style.display = "inline-block";
                     
-                    // Δημιουργία στοιχείου εικόνας στη μνήμη για το ZXing
-                    const img = new Image();
-                    img.src = event.target.result;
-                    img.onload = function() {
-                        try {
-                            // Μετατροπή της εικόνας σε μορφή που καταλαβαίνει ο αναλυτής
-                            const canvas = document.createElement('canvas');
-                            const context = canvas.getContext('2d');
-                            canvas.width = img.width;
-                            canvas.height = img.height;
-                            context.drawImage(img, 0, 0, img.width, img.height);
-                            
-                            const canvasLuminanceSource = new ZXing.HTMLCanvasElementLuminanceSource(canvas);
-                            const hybridBinarizer = new ZXing.HybridBinarizer(canvasLuminanceSource);
-                            const binaryBitmap = new ZXing.BinaryBitmap(hybridBinarizer);
-                            
-                            // Αποκωδικοποίηση
-                            const decodedResult = reader.decode(binaryBitmap);
-                            const cleanBarcode = decodedResult.getText().trim();
-                            
-                            resultDiv.innerText = `Barcode: ${cleanBarcode}`;
-                            
-                            if (barcodeMap[cleanBarcode]) {
-                                resultDiv.innerHTML += "<br><span style='color:green;'>Βρέθηκε! Ανακατεύθυνση...</span>";
-                                window.location.href = barcodeMap[cleanBarcode];
-                            } else {
-                                resultDiv.innerHTML += "<br><span style='color:red;'>Δεν υπάρχει στη λίστα Excel!</span>";
-                            }
-                        } catch (err) {
-                            resultDiv.style.color = "red";
-                            resultDiv.innerText = "Δεν βρέθηκε καθαρό Barcode. Βεβαιωθείτε ότι η φωτογραφία είναι εστιασμένη και έχει καλό φωτισμό.";
-                            console.error(err);
-                        }
+                    // Μόλις η εικόνα φορτώσει πλήρως στο <img> tag, τη στέλνουμε στη ZXing
+                    previewImg.onload = function() {
+                        codeReader.decodeFromImage(previewImg)
+                            .then(result => {
+                                const cleanBarcode = result.text.trim();
+                                resultDiv.innerText = `Barcode: ${cleanBarcode}`;
+                                
+                                if (barcodeMap[cleanBarcode]) {
+                                    resultDiv.innerHTML += "<br><span style='color:green;'>Βρέθηκε! Ανακατεύθυνση...</span>";
+                                    window.location.href = barcodeMap[cleanBarcode];
+                                } else {
+                                    resultDiv.innerHTML += "<br><span style='color:red;'>Δεν υπάρχει στη λίστα Excel!</span>";
+                                }
+                            })
+                            .catch(err => {
+                                resultDiv.style.color = "red";
+                                resultDiv.innerText = "Δεν βρέθηκε καθαρό Barcode. Βεβαιωθείτε ότι η φωτογραφία είναι κοντινή, οριζόντια και εστιασμένη (όχι θολή).";
+                                console.error(err);
+                            });
                     };
                 };
                 readerURL.readAsDataURL(file);
