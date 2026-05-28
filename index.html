@@ -17,24 +17,7 @@
 </head>
 <body>
 
-    <div class="container">
-        <h1>Barcode to URL Scanner</h1>
-        <p>Βγάλτε μια φωτογραφία το barcode ή ανεβάστε μια έτοιμη εικόνα</p>
-        
-        <!-- Input για λήψη φωτογραφίας ή επιλογή αρχείου -->
-        <input type="file" id="barcode-file" accept="image/*" capture="environment" style="display:none;">
-        
-        <button onclick="document.getElementById('barcode-file').click()" class="upload-btn">
-            📸 Φωτογράφιση Barcode
-        </button>
-
-        <!-- Στοιχείο εικόνας που θα διαβάσει απευθείας η ZXing -->
-        <img id="image-preview" class="preview-img" alt="Προεπισκόπηση">
-        
-        <div id="result">Φόρτωση λίστας...</div>
-    </div>
-
-    <script>
+       <script>
         // === ΚΑΝΕ PASTE ΤΑ ΔΕΔΟΜΕΝΑ ΣΟΥ ΑΠΟ ΤΟ EXCEL ΕΔΩ ===
         const rawExcelText = `
 5200252690010	https://www.efthymiadis.gr/inst/redestos/gallery///KaisoSorbie_500gr_EYTH_1025.pdf
@@ -247,6 +230,22 @@
             document.getElementById('result').style.color = "red";
             document.getElementById('result').innerHTML = "Δεν βρέθηκαν δεδομένα στο Excel!";
         }
+ <div class="container">
+        <h1>Barcode to URL Scanner</h1>
+        <p>Βγάλτε μια φωτογραφία το barcode ή ανεβάστε μια έτοιμη εικόνα</p>
+        
+        <!-- Input για λήψη φωτογραφίας ή επιλογή αρχείου -->
+        <input type="file" id="barcode-file" accept="image/*" capture="environment" style="display:none;">
+        
+        <button onclick="document.getElementById('barcode-file').click()" class="upload-btn">
+            📸 Φωτογράφιση Barcode
+        </button>
+
+        <!-- Στοιχείο εικόνας που θα διαβάσει απευθείας η ZXing -->
+        <img id="image-preview" class="preview-img" alt="Προεπισκόπηση">
+        
+        <div id="result">Φόρτωση λίστας...</div>
+    </div>
 
         function setupImageReader() {
             const fileInput = document.getElementById('barcode-file');
