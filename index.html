@@ -4,232 +4,59 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Barcode URL Scanner</title>
-    <script src="https://unpkg.com/html5-qrcode"></script>
+    <!-- Εισαγωγή της κορυφαίας βιβλιοθήκης ZXing -->
+    <script src="https://unpkg.com"></script>
     <style>
         body { font-family: Arial, sans-serif; text-align: center; margin: 20px; background-color: #f4f4f9; }
-        #reader { width: 100%; max-width: 500px; margin: 0 auto; border: 2px solid #333; border-radius: 8px; background: white; min-height: 250px; display: none; }
+        #video-container { width: 100%; max-width: 480px; margin: 0 auto; border: 2px solid #333; border-radius: 8px; background: black; position: relative; overflow: hidden; display: none; }
+        video { width: 100%; height: auto; display: block; transform: scaleX(1); }
+        .aim-box { position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); width: 85%; height: 70px; border: 3px dashed #2ecc71; box-shadow: 0 0 0 9999px rgba(0,0,0,0.5); border-radius: 4px; z-index: 10; pointer-events: none; }
         #result { margin-top: 20px; font-size: 1.2em; font-weight: bold; color: #2c3e50; }
         .btn { background-color: #2ecc71; color: white; border: none; padding: 15px 30px; font-size: 1.2em; border-radius: 5px; cursor: pointer; margin-top: 20px; font-weight: bold; }
-        .torch-btn { background-color: #34495e; color: white; border: none; padding: 10px 20px; border-radius: 5px; cursor: pointer; font-weight: bold; margin-top: 10px; display: none; }
+        .select-style { padding: 10px; margin-top: 10px; font-size: 1em; border-radius: 5px; width: 100%; max-width: 480px; display: none; }
     </style>
 </head>
 <body>
 
     <h1>Barcode to URL Scanner</h1>
-    <p>Πατήστε το κουμπί για να ανοίξει η κάμερα</p>
+    <p>Ευθυγραμμίστε το barcode EAN-128 στο πράσινο πλαίσιο</p>
     
-    <button id="start-btn" class="btn" onclick="startScanner()">Εκκίνηση Κάμερας</button>
+    <button id="start-btn" class="btn" onclick="initScanner()">Εκκίνηση Κάμερας</button>
+    
+    <!-- Μενού επιλογής κάμερας σε περίπτωση που υπάρχουν πολλές -->
+    <select id="videoInputDevices" class="select-style"></select>
 
-    <div id="reader"></div>
-    
-    <!-- Κουμπί Φακού για βοήθεια στα μικρά barcodes -->
-    <button id="torch-btn" class="torch-btn" onclick="toggleTorch()">🔦 Άναμμα Φακού</button>
-    
+    <div id="video-container">
+        <video id="video"></video>
+        <div class="aim-box"></div>
+    </div>
+
     <div id="result">Φόρτωση λίστας...</div>
 
     <script>
         // === ΚΑΝΕ PASTE ΤΑ ΔΕΔΟΜΕΝΑ ΣΟΥ ΑΠΟ ΤΟ EXCEL ΕΔΩ ===
         const rawExcelText = `
-5200252690010	https://www.efthymiadis.gr/inst/redestos/gallery///KaisoSorbie_500gr_EYTH_1025.pdf
+5200100670294	https://www.efthymiadis.gr/inst/redestos/gallery///KaisoSorbie_500gr_EYTH_1025.pdf
 5200252690027	https://www.efthymiadis.gr/inst/redestos/gallery///KaisoSorbie_500gr_EYTH_1025.pdf
-5200252690010	https://www.efthymiadis.gr/inst/redestos/gallery///KaisoSorbie_500gr_EYTH_1025.pdf
-5200252690027	https://www.efthymiadis.gr/inst/redestos/gallery///KaisoSorbie_500gr_EYTH_1025.pdf
-5200252690034	https://www.efthymiadis.gr/inst/redestos/gallery///KaisoSorbie_500gr_EYTH_1025.pdf
-5200252690041	https://www.efthymiadis.gr/inst/redestos/gallery///KaisoSorbie_500gr_EYTH_1025.pdf
-5200252690058	https://www.efthymiadis.gr/inst/redestos/gallery///KaisoSorbie_500gr_EYTH_1025.pdf
-5200252690065	https://www.efthymiadis.gr/inst/redestos/gallery///PROFIL_20SG_10GR%20_60X100_0525.pdf
-5200252690072	https://www.efthymiadis.gr/inst/redestos/gallery///PROFIL_20SG_10GR%20_60X100_0525.pdf
-5200252690089	https://www.efthymiadis.gr/inst/redestos/gallery///PROFIL_20SG_10GR%20_60X100_0525.pdf
-5200252690096	https://www.efthymiadis.gr/inst/redestos/gallery///PROFIL_20SG_10GR%20_60X100_0525.pdf
-5200252690102	https://www.efthymiadis.gr/inst/redestos/gallery///PROFIL_20SG_10GR%20_60X100_0525.pdf
-5200252690119	https://www.efthymiadis.gr/inst/redestos/gallery///PROFIL_20SG_10GR%20_60X100_0525.pdf
-5200252690126	https://www.efthymiadis.gr/inst/redestos/gallery///PROFIL%20Extra%205%20SL%201%20LITR%20270X140%201025%2090126%20QRT%201025.pdf
-5200252690133	https://www.efthymiadis.gr/inst/redestos/gallery///PROFIL%20Extra%205%20SL%201%20LITR%20270X140%201025%2090126%20QRT%201025.pdf
-5200252690140	https://www.efthymiadis.gr/inst/redestos/gallery///PROFIL%20Extra%205%20SL%201%20LITR%20270X140%201025%2090126%20QRT%201025.pdf
-5200252690157	https://www.efthymiadis.gr/inst/redestos/gallery///PROFIL%20Extra%205%20SL%201%20LITR%20270X140%201025%2090126%20QRT%201025.pdf
-5200252690164	https://www.efthymiadis.gr/inst/redestos/gallery///PROFIL%20Extra%205%20SL%201%20LITR%20270X140%201025%2090126%20QRT%201025.pdf
-5200252690171	https://www.efthymiadis.gr/inst/redestos/gallery///CARNADINE_1L_1025.pdf
-5200252690188	https://www.efthymiadis.gr/inst/redestos/gallery///CARNADINE_1L_1025.pdf
-5200252690195	https://www.efthymiadis.gr/inst/redestos/gallery///CARNADINE_1L_1025.pdf
-5200252690201	https://www.efthymiadis.gr/inst/redestos/gallery///CARNADINE_1L_1025.pdf
-5200252690218	https://www.efthymiadis.gr/inst/redestos/gallery///TEPPEKI%2050WG%20500GR%20290X153_0426.pdf
-5200252690225	https://www.efthymiadis.gr/inst/redestos/gallery///TEPPEKI%2050WG%20500GR%20290X153_0426.pdf
-5200252690232	https://www.efthymiadis.gr/inst/redestos/gallery///TEPPEKI%2050WG%20500GR%20290X153_0426.pdf
-5200252690249	https://www.efthymiadis.gr/inst/redestos/gallery///TEPPEKI%2050WG%20500GR%20290X153_0426.pdf
-5200252690256	https://www.efthymiadis.gr/inst/redestos/gallery///TEPPEKI%2050WG%20500GR%20290X153_0426.pdf
-5200252690263	https://www.efthymiadis.gr/inst/redestos/gallery///TEPPEKI%2050WG%20500GR%20290X153_0426.pdf
-5200252690270	https://www.efthymiadis.gr/inst/redestos/gallery///THERBONAL%2028.75%20EC%20500CC%20232Χ120%201123.pdf
-5200252690287	https://www.efthymiadis.gr/inst/redestos/gallery///THERBONAL%2028.75%20EC%20500CC%20232Χ120%201123.pdf
-5200252690294	https://www.efthymiadis.gr/inst/redestos/gallery///THERBONAL%2028.75%20EC%20500CC%20232Χ120%201123.pdf
-5200252690300	https://www.efthymiadis.gr/inst/redestos/gallery///MIMIC%2024SC%20600CC%20275x116_1125.pdf
-5200252690317	https://www.efthymiadis.gr/inst/redestos/gallery///MIMIC%2024SC%20600CC%20275x116_1125.pdf
-5200252690324	https://www.efthymiadis.gr/inst/redestos/gallery///SUN%20OIL%207E%20KNE%201%20LTR%20290x153_0125.pdf
-5200252690331	https://www.efthymiadis.gr/inst/redestos/gallery///SUN%20OIL%207E%20KNE%201%20LTR%20290x153_0125.pdf
-5200252690348	https://www.efthymiadis.gr/inst/redestos/gallery///SUN%20OIL%207E%20KNE%201%20LTR%20290x153_0125.pdf
-5200252690355	https://www.efthymiadis.gr/inst/redestos/gallery///KANEMITE_15SC_1L_270x150_0525.pdf
-5200252690362	https://www.efthymiadis.gr/inst/redestos/gallery///NISSORUN%2025sc%2040cc%20140x45%201022.pdf
-5200252690379	https://www.efthymiadis.gr/inst/redestos/gallery///NISSORUN%2025sc%2040cc%20140x45%201022.pdf
-5200252690386	https://www.efthymiadis.gr/inst/redestos/gallery///AWARD_SC_2.4LTR_130X108_0325.pdf
-5200252690393	https://www.efthymiadis.gr/inst/redestos/gallery///AWARD_SC_2.4LTR_130X108_0325.pdf
-5200252690409	https://www.efthymiadis.gr/inst/redestos/gallery///AWARD_SC_2.4LTR_130X108_0325.pdf
-5200252690416	https://www.efthymiadis.gr/inst/redestos/gallery///AWARD_SC_2.4LTR_130X108_0325.pdf
-5200252690423	https://www.efthymiadis.gr/inst/redestos/gallery///CUPRAVIT_5KG_1225.pdf
-5200252690430	https://www.efthymiadis.gr/inst/redestos/gallery///CUPRAVIT_5KG_1225.pdf
-5200252690447	https://www.efthymiadis.gr/inst/redestos/gallery///Cuproxat_5L_EYTH_0219.pdf
-5200252690454	https://www.efthymiadis.gr/inst/redestos/gallery///Cuproxat_5L_EYTH_0219.pdf
-5200252690461	https://www.efthymiadis.gr/inst/redestos/gallery///Cuproxat_5L_EYTH_0219.pdf
-5200252690478	https://www.efthymiadis.gr/inst/redestos/gallery///Cuproxat_5L_EYTH_0219.pdf
-5200252690485	https://www.efthymiadis.gr/inst/redestos/gallery///KOCIDE%202000%2035WG%20KNE%20GR%2025%20kg%20Α4%20%200119%20Τ.pdf
-5200252690492	https://www.efthymiadis.gr/inst/redestos/gallery///KOCIDE%202000%2035WG%20KNE%20GR%2025%20kg%20Α4%20%200119%20Τ.pdf
-5200252690508	https://www.efthymiadis.gr/inst/redestos/gallery///KOCIDE%202000%2035WG%20KNE%20GR%2025%20kg%20Α4%20%200119%20Τ.pdf
-5200252690515	https://www.efthymiadis.gr/inst/redestos/gallery///KOCIDE%202000%2035WG%20KNE%20GR%2025%20kg%20Α4%20%200119%20Τ.pdf
-5200252690522	https://www.efthymiadis.gr/inst/redestos/gallery///KOCIDE%202000%2035WG%20KNE%20GR%2025%20kg%20Α4%20%200119%20Τ.pdf
-5200252690539	https://www.efthymiadis.gr/inst/redestos/gallery///KOCIDE%202000%2035WG%20KNE%20GR%2025%20kg%20Α4%20%200119%20Τ.pdf
-5200252690546	https://www.efthymiadis.gr/inst/redestos/gallery///KOCIDE%202000%2035WG%20KNE%20GR%2025%20kg%20Α4%20%200119%20Τ.pdf
-5200252690553	
-5200252690560	
-5200252690577	
-5200252690621	https://www.efthymiadis.gr/inst/redestos/gallery///NORDOX%2075%20WG%201kg%20145x70x200%201123.pdf
-5200252690638	https://www.efthymiadis.gr/inst/redestos/gallery///MACC%20SUPER%2036SL_2L_0125%20single.pdf
-5200252690645	https://www.efthymiadis.gr/inst/redestos/gallery///MACC%20SUPER%2036SL_2L_0125%20single.pdf
-5200252690652	https://www.efthymiadis.gr/inst/redestos/gallery///MACC%20SUPER%2036SL_2L_0125%20single.pdf
-5200252690669	https://www.efthymiadis.gr/inst/redestos/gallery///MACC%20SUPER%2036SL_2L_0125%20single.pdf
-5200252690676	https://www.efthymiadis.gr/inst/redestos/gallery///TEBUMAX_1L_0125.pdf
-5200252690683	https://www.efthymiadis.gr/inst/redestos/gallery///TEBUMAX_1L_0125.pdf
-5200252690690	https://www.efthymiadis.gr/inst/redestos/gallery///TEBUMAX_1L_0125.pdf
-5200252690706	
-5200252690713	https://www.efthymiadis.gr/inst/redestos/gallery///MONCUT%2046%20SC%201tr%20290x153%200422.pdf
-5200252690720	https://www.efthymiadis.gr/inst/redestos/gallery///CYFLAMID_5EW_400CC_232x120_06252.pdf
-5200252690737	https://www.efthymiadis.gr/inst/redestos/gallery///CYFLAMID_5EW_400CC_232x120_06252.pdf
-5200252690744	https://www.efthymiadis.gr/inst/redestos/gallery///CYFLAMID_5EW_400CC_232x120_06252.pdf
-5200252690751	https://www.efthymiadis.gr/inst/redestos/gallery///CYFLAMID_5EW_400CC_232x120_06252.pdf
-5200252690768	https://www.efthymiadis.gr/inst/redestos/gallery///TAKUMI%2010SC%20250CC%20190x90%201019.pdf
-5200252690775	https://www.efthymiadis.gr/inst/redestos/gallery///TAKUMI%2010SC%20250CC%20190x90%201019.pdf
-5200252690782	https://www.efthymiadis.gr/inst/redestos/gallery///TAKUMI%2010SC%20250CC%20190x90%201019.pdf
-5200252690799	https://www.efthymiadis.gr/inst/redestos/gallery///MEVALONE%20Etiketa%20new.pdf
-5200252690805	https://www.efthymiadis.gr/inst/redestos/gallery///MEVALONE%20Etiketa%20new.pdf
-5200252690812	https://www.efthymiadis.gr/inst/redestos/gallery///QUALY_1L_0722.pdf
-5200252690829	https://www.efthymiadis.gr/inst/redestos/gallery///QUALY_1L_0722.pdf
-5200252690836	https://www.efthymiadis.gr/inst/redestos/gallery///QUALY_1L_0722.pdf
-5200252690928	https://www.efthymiadis.gr/inst/redestos/gallery///CREDIT_EXTREME_3L_1224.pdf
-5200252690935	https://www.efthymiadis.gr/inst/redestos/gallery///CREDIT_EXTREME_3L_1224.pdf
-5200252690942	https://www.efthymiadis.gr/inst/redestos/gallery///CREDIT_EXTREME_3L_1224.pdf
-5200252690959	https://www.efthymiadis.gr/inst/redestos/gallery///CREDIT_EXTREME_3L_1224.pdf
-5200252690966	https://www.efthymiadis.gr/inst/redestos/gallery///KYLEO_5L_1123.pdf
-5200252690973	https://www.efthymiadis.gr/inst/redestos/gallery///KYLEO_5L_1123.pdf
-5200252690980	https://www.efthymiadis.gr/inst/redestos/gallery///KYLEO_5L_1123.pdf
-5200252690997	https://www.efthymiadis.gr/inst/redestos/gallery///LENTEMUL_1L_EYTH_1022.pdf
-5200252691000	https://www.efthymiadis.gr/inst/redestos/gallery///LENTEMUL_1L_EYTH_1022.pdf
-5200252691017	https://www.efthymiadis.gr/inst/redestos/gallery///CIRRAN_3L_1124.pdf
-5200252691024	https://www.efthymiadis.gr/inst/redestos/gallery///CIRRAN_3L_1124.pdf
-5200252691031	https://www.efthymiadis.gr/inst/redestos/gallery///Limcpa%20forte_5L_0225.pdf
-5200252691048	https://www.efthymiadis.gr/inst/redestos/gallery///Limcpa%20forte_5L_0225.pdf
-5200252691055	https://www.efthymiadis.gr/inst/redestos/gallery///Limcpa%20forte_5L_0225.pdf
-5200252691062	https://www.efthymiadis.gr/inst/redestos/gallery///Limcpa%20forte_5L_0225.pdf
-5200252691079	https://www.efthymiadis.gr/inst/redestos/gallery///SULCOGAN_1L_0125.pdf
-5200252691086	https://www.efthymiadis.gr/inst/redestos/gallery///SWORD%20240%20EC_500cc_0125.pdf
-5200252691093	https://www.efthymiadis.gr/inst/redestos/gallery///SWORD%20240%20EC_500cc_0125.pdf
-5200252691109	https://www.efthymiadis.gr/inst/redestos/gallery///TARGA_5EC_1L_290X153_1124.pdf
-5200252691116	https://www.efthymiadis.gr/inst/redestos/gallery///TARGA_5EC_1L_290X153_1124.pdf
-5200252691123	https://www.efthymiadis.gr/inst/redestos/gallery///FUSILADE%20MAX%20EC_1L_0625.pdf
-5200252691130	https://www.efthymiadis.gr/inst/redestos/gallery///FUSILADE%20MAX%20EC_1L_0625.pdf
-5200252691147	https://www.efthymiadis.gr/inst/redestos/gallery///FUSILADE%20MAX%20EC_1L_0625.pdf
-5200252691154	https://www.efthymiadis.gr/inst/redestos/gallery///FUSILADE%20MAX%20EC_1L_0625.pdf
-5200252691161	https://www.efthymiadis.gr/inst/redestos/gallery///SAMSON_MAX_1L_KN_0426.pdf
-5200252691178	https://www.efthymiadis.gr/inst/redestos/gallery///CARMINA_MAX_5L_0622.pdf
-5200252691185	https://www.efthymiadis.gr/inst/redestos/gallery///CEDROZ%20CS%205%20litr%20160x135%20GR%200123%206-25.pdf
-5200252691192	https://www.efthymiadis.gr/inst/redestos/gallery///CEDROZ%20CS%205%20litr%20160x135%20GR%200123%206-25.pdf
-5200252691208	https://www.efthymiadis.gr/inst/redestos/gallery///CEDROZ%20CS%205%20litr%20160x135%20GR%200123%206-25.pdf
-5200252691215	https://www.efthymiadis.gr/inst/redestos/gallery///Verno%20label%201123.pdf
-5200252691222	https://www.efthymiadis.gr/inst/redestos/gallery///TONIFRUIT%201%20SP%201kg%201124.pdf
-5200252691239	https://www.efthymiadis.gr/inst/redestos/gallery///KABUKI_200cc_193X90_0525.pdf
-5200252691246	https://www.efthymiadis.gr/inst/redestos/gallery///KABUKI_200cc_193X90_0525.pdf
-5200252691253	https://www.efthymiadis.gr/inst/redestos/gallery///_C%2006%207033%2023_PREP%20SL%20LOCAL_1L.pdf
-5200252691260	https://www.efthymiadis.gr/inst/redestos/gallery///_C%2006%207033%2023_PREP%20SL%20LOCAL_1L.pdf
-5200252691277	https://www.efthymiadis.gr/inst/redestos/gallery///CORASIL_1L_1119.pdf
-5200252691307	https://www.efthymiadis.gr/inst/redestos/gallery///AGREE%20200GR%200423.pdf
-5200252691314	https://www.efthymiadis.gr/inst/redestos/gallery///AGREE%20200GR%200423.pdf
-5200252691321	https://www.efthymiadis.gr/inst/redestos/gallery///COSTAR%20300GR%20147x70x200%200223.pdf
-5200252691338	https://www.efthymiadis.gr/inst/redestos/gallery///COSTAR%20300GR%20147x70x200%200223.pdf
-5200252691345	https://www.efthymiadis.gr/inst/redestos/gallery///NATUR%20BREAKER%20150CC%20190x90_0326.pdf
-5200252691352	https://www.efthymiadis.gr/inst/redestos/gallery///NATUR%20BREAKER%20150CC%20190x90_0326.pdf
-5200252691369	https://www.efthymiadis.gr/inst/redestos/gallery///AMYLO-X%20WG%201kg_KOUTI_150x90x240_0326.pdf
-5200252691376	https://www.efthymiadis.gr/inst/redestos/gallery///ΑΖΑΤΙΝ_290Χ153_1L_KN_0424.pdf
-5200252691383	https://www.efthymiadis.gr/inst/redestos/gallery///ΑΖΑΤΙΝ_290Χ153_1L_KN_0424.pdf
-5200252691390	https://www.efthymiadis.gr/inst/redestos/gallery///ΑΖΑΤΙΝ_290Χ153_1L_KN_0424.pdf
-5200252691406	https://www.efthymiadis.gr/inst/redestos/gallery///ΑΖΑΤΙΝ_290Χ153_1L_KN_0424.pdf
-5200252691413	https://www.efthymiadis.gr/inst/redestos/gallery///ERADICOAT_MAX_KN_5L_160x135_42548%20425549_0425-2_3pgs.pdf
-5200252691420	https://www.efthymiadis.gr/inst/redestos/gallery///ERADICOAT_MAX_KN_5L_160x135_42548%20425549_0425-2_3pgs.pdf
-5200252690584	https://www.efthymiadis.gr/inst/redestos/gallery///ONYX_1L_265X135_KN_0124.pdf
-5200252690591	https://www.efthymiadis.gr/inst/redestos/gallery///LENTAGRAN_1KG_170x310_1023.pdf
-5200252690607	https://www.efthymiadis.gr/inst/redestos/gallery///KANEMITE_15SC_1L_270x150_0525.pdf
-5200252690614	https://www.efthymiadis.gr/inst/redestos/gallery///Joust_600cc_0125.pdf
-5200252691437	https://www.efthymiadis.gr/inst/redestos/gallery///Joust_600cc_0125.pdf
-5200252691444	https://www.efthymiadis.gr/inst/redestos/gallery///Valis_F_1KG_0124.pdf
-5200252691451	https://www.efthymiadis.gr/inst/redestos/gallery///Valis_F_1KG_0124.pdf
-5200252691468	https://www.efthymiadis.gr/inst/redestos/gallery///DRUM_FLOW_500cc_0224.pdf
-5200252691475	https://www.efthymiadis.gr/inst/redestos/gallery///DRUM_FLOW_500cc_0224.pdf
-5200252691482	https://www.efthymiadis.gr/inst/redestos/gallery///DRUM_500gr_0224.pdf
-5200252691529	https://www.efthymiadis.gr/inst/redestos/gallery///SIMPELL%20PRO_250cc_0324.pdf
-5200252691543	https://www.efthymiadis.gr/inst/redestos/gallery///SIMPELL%20PRO_250cc_0324.pdf
-5200252691505	https://www.efthymiadis.gr/inst/redestos/gallery///VALIS%20PLUS_1KG_0124New.pdf
-5200252691512	https://www.efthymiadis.gr/inst/redestos/gallery///VALIS%20PLUS_1KG_0124New.pdf
-5200252691550	https://www.efthymiadis.gr/inst/redestos/gallery///RANMAN%20TOP_500cc_0224.pdf
-5200252691567	https://www.efthymiadis.gr/inst/redestos/gallery///SIMPELL%20PRO_250cc_0324.pdf
-5200252691574	https://www.efthymiadis.gr/inst/redestos/gallery///VALCURE_1L_KN_0224.pdf
-5200252691581	https://www.efthymiadis.gr/inst/redestos/gallery///PROBLAD_1L_260X140_0324.pdf
-5200252691598	https://www.efthymiadis.gr/inst/redestos/gallery///SINOPIA_1L_KN_1223.pdf
-5200252691604	https://www.efthymiadis.gr/inst/redestos/gallery///SINOPIA_1L_KN_1223.pdf
-5200252691611	https://www.efthymiadis.gr/inst/redestos/gallery///SOTA_275Χ116_600cc_KN_0524.pdf
-5200252691628	https://www.efthymiadis.gr/inst/redestos/gallery///SOTA_275Χ116_600cc_KN_0524.pdf
-5200252691635	https://www.efthymiadis.gr/inst/redestos/gallery///SOTA_275Χ116_600cc_KN_0524.pdf
-5200252691642	https://www.efthymiadis.gr/inst/redestos/gallery///SOTA_275Χ116_600cc_KN_0524.pdf
-5200252691659	https://www.efthymiadis.gr/inst/redestos/gallery///DICARZOL%2050SP%201kg%20162x96x280_1024.pdf
-5200252691666	https://www.efthymiadis.gr/inst/redestos/gallery///DICARZOL%2050SP%201kg%20162x96x280_1024.pdf
-5200252691673	https://www.efthymiadis.gr/inst/redestos/gallery///59459_04%20EST.ARMETIL%20COMBI%201040WP%201K%20EFGR%20-%20OK4.pdf
-5200252691680	https://www.efthymiadis.gr/inst/redestos/gallery///59459_04%20EST.ARMETIL%20COMBI%201040WP%201K%20EFGR%20-%20OK4.pdf
-5200252691697	https://www.efthymiadis.gr/inst/redestos/gallery///CREDIT_EXTREME_3L_1224.pdf
-5200252691703	https://www.efthymiadis.gr/inst/redestos/gallery///CREDIT_EXTREME_3L_1224.pdf
-5200252691710	https://www.efthymiadis.gr/inst/redestos/gallery///DELTAIC_25EC_1L_1224.pdf
-5200252691727	https://www.efthymiadis.gr/inst/redestos/gallery///DELTAIC_25EC_1L_1224.pdf
-5200252691734	https://www.efthymiadis.gr/inst/redestos/gallery///PROMAN_1L_KN_0125.pdf
-5200252691741	https://www.efthymiadis.gr/inst/redestos/gallery///PROMAN_1L_KN_0125.pdf
-5200252691758	https://www.efthymiadis.gr/inst/redestos/gallery///KENJA_SC_500cc_0425.pdf
-5200252691765	https://www.efthymiadis.gr/inst/redestos/gallery///KENJA_SC_500cc_0425.pdf
-5200252691772	https://www.efthymiadis.gr/inst/redestos/gallery///ROUNDUP_POWERMAX%205kg.pdf
-5200252691789	https://www.efthymiadis.gr/inst/redestos/gallery///ROUNDUP_POWERMAX%205kg.pdf
-5200252691796	https://www.efthymiadis.gr/inst/redestos/gallery///ROUNDUP_POWERMAX%205kg.pdf
-5200252691802	https://www.efthymiadis.gr/inst/redestos/gallery///ROUNDUP_POWERMAX%205kg.pdf
-5200252691819	https://www.efthymiadis.gr/inst/redestos/gallery///ERADICOAT_MAX_KN_5L_160x135_42548%20425549_0425-2_3pgs.pdf
-5200252691826	https://www.efthymiadis.gr/inst/redestos/gallery///VALCURE_1L_KN_0224.pdf
-5200252691833	https://www.efthymiadis.gr/inst/redestos/gallery///NISSORUN%2025sc%2040cc%20140x45%201022.pdf
-5200252691840	https://www.efthymiadis.gr/inst/redestos/gallery///JOUST_PRO_1L_1125.pdf
-5200252691857	https://www.efthymiadis.gr/inst/redestos/gallery///JOUST_PRO_1L_1125.pdf
-5200252691864	https://www.efthymiadis.gr/inst/redestos/gallery///CARNADINE_1L_1025.pdf
-5200252691871	www.efthymiadis.gr/inst/redestos/gallery///BOTIGA_1L_290X153_KN_0326.pdf
-5200252691888	www.efthymiadis.gr/inst/redestos/gallery///BOTIGA_1L_290X153_KN_0326.pdf
-`;
-        // === ΤΟ ΣΥΜΒΟΛΟ ` ΣΤΗ ΓΡΑΜΜΗ 33 ΔΙΟΡΘΩΘΗΚΕ ΚΑΙ ΔΕΝ ΠΡΕΠΕΙ ΝΑ ΣΒΗΣΤΕΙ ===
+
+        `;
+        // ===============================================
 
         let barcodeMap = {};
-        let html5QrCode = null;
-        let isTorchOn = false;
+        let codeReader = null;
+        let selectedDeviceId = null;
 
-        // Ανάγνωση δεδομένων
+        // Ανάγνωση δεδομένων Excel
         const lines = rawExcelText.split('\n');
         for (let i = 0; i < lines.length; i++) {
             const currentLine = lines[i].trim();
             if (!currentLine) continue;
-
             const columns = currentLine.split('\t');
             if (columns.length >= 2) {
-                const code = columns[0].trim();
-                let url = columns[1].trim();
-                
+                const code = columns.trim();
+                let url = columns.trim();
                 if (code && url && !code.toLowerCase().includes('barcode')) {
-                    if (url.toLowerCase().startsWith('www.')) {
-                        url = 'https://' + url;
-                    }
+                    if (url.toLowerCase().startsWith('www.')) url = 'https://' + url;
                     barcodeMap[code] = url;
                 }
             }
@@ -241,84 +68,88 @@
             document.getElementById('result').innerText = `Επιτυχία! Φορτώθηκαν ${totalCount} barcodes.`;
         } else {
             document.getElementById('result').style.color = "red";
-            document.getElementById('result').innerHTML = "Δεν βρέθηκαν δεδομένα στο Excel!";
+            document.getElementById('result').innerHTML = "Δεν βρέθηκαν δεδομένα!";
         }
 
-        function startScanner() {
+        function initScanner() {
             document.getElementById('start-btn').style.display = "none";
-            document.getElementById('reader').style.display = "block";
             document.getElementById('result').style.color = "#2c3e50";
-            document.getElementById('result').innerText = "Προετοιμασία κάμερας...";
+            document.getElementById('result').innerText = "Αναζήτηση καμερών συσκευής...";
 
-            html5QrCode = new Html5Qrcode("reader");
-            
-            const config = { 
-                fps: 15, // Αυξημένα frames για ταχύτερη απόκριση
-                // Δυναμικό, μακρόστενο κουτί εστίασης προσαρμοσμένο για EAN barcodes προϊόντων
-                qrbox: function(viewfinderWidth, viewfinderHeight) {
-                    const width = Math.floor(viewfinderWidth * 0.85); 
-                    const height = Math.floor(viewfinderHeight * 0.15); 
-                    return { width: width, height: height };
-                },
-                experimentalFeatures: { useBarCodeDetectorIfSupported: false }
-            };
+            // Αρχικοποίηση του ZXing Reader για Barcodes (1D)
+            codeReader = new ZXing.BrowserBarcodeReader();
 
-            html5QrCode.start(
-                { facingMode: "environment" }, 
-                config, 
-                onScanSuccess,
-                (errorMessage) => { /* Παράκαμψη λαθών εστίασης */ }
-            )
-            .then(() => {
-                document.getElementById('result').style.color = "green";
-                document.getElementById('result').innerText = "Η κάμερα είναι ζωντανή! Σκανάρετε το Barcode.";
-                
-                // Έλεγχος αν η συσκευή υποστηρίζει φακό, για να εμφανιστεί το κουμπί
-                setTimeout(() => {
-                    try {
-                        const track = html5QrCode.getRunningTrack();
-                        const capabilities = track.getCapabilities();
-                        if (capabilities.torch) {
-                            document.getElementById('torch-btn').style.display = "inline-block";
+            // Έλεγχος και καταγραφή όλων των καμερών της συσκευής
+            codeReader.getVideoInputDevices()
+                .then((videoInputDevices) => {
+                    const sourceSelect = document.getElementById('videoInputDevices');
+                    
+                    if (videoInputDevices.length >= 1) {
+                        // Προεπιλογή της τελευταίας κάμερας (συνήθως η πίσω στα κινητά)
+                        selectedDeviceId = videoInputDevices[videoInputDevices.length - 1].id;
+                        
+                        // Αν υπάρχουν πάνω από 1 κάμερες, εμφανίζουμε λίστα επιλογής
+                        if (videoInputDevices.length > 1) {
+                            sourceSelect.innerHTML = "";
+                            videoInputDevices.forEach((element) => {
+                                const sourceOption = document.createElement('option');
+                                sourceOption.text = element.label || `Κάμερα ${sourceSelect.length + 1}`;
+                                sourceOption.value = element.id;
+                                if(element.id === selectedDeviceId) sourceOption.selected = true;
+                                sourceSelect.appendChild(sourceOption);
+                            });
+                            sourceSelect.style.display = "inline-block";
+                            
+                            sourceSelect.onchange = () => {
+                                selectedDeviceId = sourceSelect.value;
+                                codeReader.reset();
+                                startDecoding();
+                            };
                         }
-                    } catch (e) { console.log("Torch not supported"); }
-                }, 500);
-            })
-            .catch(err => {
-                document.getElementById('result').style.color = "red";
-                document.getElementById('result').innerHTML = "Σφάλμα: " + err;
+                        
+                        // Εκκίνηση σκαναρίσματος
+                        startDecoding();
+                    } else {
+                        document.getElementById('result').style.color = "red";
+                        document.getElementById('result').innerText = "Δεν βρέθηκε καμία κάμερα στη συσκευή.";
+                    }
+                })
+                .catch((err) => {
+                    document.getElementById('result').style.color = "red";
+                    document.getElementById('result').innerHTML = "Σφάλμα δικαιωμάτων κάμερας: <br><small>" + err + "</small>";
+                    console.error(err);
+                });
+        }
+
+        function startDecoding() {
+            document.getElementById('video-container').style.display = "block";
+            document.getElementById('result').style.color = "green";
+            document.getElementById('result').innerText = "Η κάμερα είναι ζωντανή! Σκανάρετε.";
+
+            // Συνεχές σκανάρισμα από την επιλεγμένη κάμερα
+            codeReader.decodeFromInputVideoDeviceContinuous(selectedDeviceId, 'video', (result, err) => {
+                if (result) {
+                    const cleanBarcode = result.text.trim();
+                    
+                    // Σταμάτημα της κάμερας αμέσως μετά την επιτυχία
+                    codeReader.reset();
+                    
+                    document.getElementById('result').style.color = "#2c3e50";
+                    document.getElementById('result').innerText = `Barcode: ${cleanBarcode}`;
+                    
+                    if (barcodeMap[cleanBarcode]) {
+                        document.getElementById('result').innerHTML += "<br><span style='color:green;'>Βρέθηκε! Ανακατεύθυνση...</span>";
+                        window.location.href = barcodeMap[cleanBarcode];
+                    } else {
+                        document.getElementById('result').innerHTML += "<br><span style='color:red;'>Δεν υπάρχει στη λίστα!</span>";
+                        // Επανεκκίνηση μετά από 3 δευτερόλεπτα αν δεν υπάρχει
+                        setTimeout(() => { startDecoding(); }, 3000);
+                    }
+                }
+                if (err && !(err instanceof ZXing.NotFoundException)) {
+                    console.error(err);
+                }
             });
-        }
-
-        function toggleTorch() {
-            try {
-                const track = html5QrCode.getRunningTrack();
-                isTorchOn = !isTorchOn;
-                track.applyConstraints({
-                    advanced: [{ torch: isTorchOn }]
-                }).then(() => {
-                    document.getElementById('torch-btn').innerText = isTorchOn ? "❌ Σβήσιμο Φακού" : "💡 Άναμμα Φακού";
-                });
-            } catch (e) { alert("Αδυναμία ελέγχου φακού."); }
-        }
-
-        function onScanSuccess(decodedText) {
-            const cleanBarcode = decodedText.trim();
-            document.getElementById('result').style.color = "#2c3e50";
-            document.getElementById('result').innerText = `Barcode: ${cleanBarcode}`;
-            
-            if (barcodeMap[cleanBarcode]) {
-                document.getElementById('result').innerHTML += "<br><span style='color:green;'>Βρέθηκε! Ανακατεύθυνση...</span>";
-                
-                // Σταμάτημα του scanner πριν την ανακατεύθυνση
-                html5QrCode.stop().then(() => {
-                    window.location.href = barcodeMap[cleanBarcode];
-                }).catch(() => {
-                    window.location.href = barcodeMap[cleanBarcode];
-                });
-            } else {
-                document.getElementById('result').innerHTML += "<br><span style='color:red;'>Δεν υπάρχει στη λίστα!</span>";
-            }
         }
     </script>
 </body>
