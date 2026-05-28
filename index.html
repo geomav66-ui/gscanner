@@ -4,30 +4,30 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Barcode URL Scanner</title>
-    <!-- Εισαγωγή της νέας, σταθερής βιβλιοθήκης QuaggaJS -->
-    <script src="https://cloudflare.com"></script>
+    <!-- Εισαγωγή της κορυφαίας βιβλιοθήκης ZXing -->
+    <script src="https://unpkg.com"></script>
     <style>
         body { font-family: Arial, sans-serif; text-align: center; margin: 20px; background-color: #f4f4f9; }
-        
-        /* Παράθυρο κάμερας */
-        #interactive { width: 100%; max-width: 480px; margin: 0 auto; border: 2px solid #333; border-radius: 8px; background: black; position: relative; overflow: hidden; display: none; }
-        #interactive video { width: 100%; height: auto; display: block; }
-        
-        /* Το σκόπευτρο εστίασης */
-        .aim-box { position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); width: 85%; height: 60px; border: 3px solid #2ecc71; box-shadow: 0 0 0 9999px rgba(0,0,0,0.5); border-radius: 4px; z-index: 10; pointer-events: none; }
-        
+        #video-container { width: 100%; max-width: 480px; margin: 0 auto; border: 2px solid #333; border-radius: 8px; background: black; position: relative; overflow: hidden; display: none; }
+        video { width: 100%; height: auto; display: block; transform: scaleX(1); }
+        .aim-box { position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); width: 85%; height: 70px; border: 3px dashed #2ecc71; box-shadow: 0 0 0 9999px rgba(0,0,0,0.5); border-radius: 4px; z-index: 10; pointer-events: none; }
         #result { margin-top: 20px; font-size: 1.2em; font-weight: bold; color: #2c3e50; }
         .btn { background-color: #2ecc71; color: white; border: none; padding: 15px 30px; font-size: 1.2em; border-radius: 5px; cursor: pointer; margin-top: 20px; font-weight: bold; }
+        .select-style { padding: 10px; margin-top: 10px; font-size: 1em; border-radius: 5px; width: 100%; max-width: 480px; display: none; }
     </style>
 </head>
 <body>
 
     <h1>Barcode to URL Scanner</h1>
-    <p>Τοποθετήστε το barcode οριζόντια μέσα στο πράσινο πλαίσιο</p>
+    <p>Ευθυγραμμίστε το barcode EAN-128 στο πράσινο πλαίσιο</p>
     
-    <button id="start-btn" class="btn" onclick="startScanner()">Εκκίνηση Κάμερας</button>
+    <button id="start-btn" class="btn" onclick="initScanner()">Εκκίνηση Κάμερας</button>
+    
+    <!-- Μενού επιλογής κάμερας σε περίπτωση που υπάρχουν πολλές -->
+    <select id="videoInputDevices" class="select-style"></select>
 
-    <div id="interactive" class="viewport">
+    <div id="video-container">
+        <video id="video"></video>
         <div class="aim-box"></div>
     </div>
 
@@ -219,6 +219,8 @@
         // ===============================================
 
         let barcodeMap = {};
+        let codeReader = null;
+        let selectedDeviceId = null;
 
         // Ανάγνωση δεδομένων Excel
         const lines = rawExcelText.split('\n');
@@ -227,8 +229,8 @@
             if (!currentLine) continue;
             const columns = currentLine.split('\t');
             if (columns.length >= 2) {
-                const code = columns[0].trim();
-                let url = columns[1].trim();
+                const code = columns.trim();
+                let url = columns.trim();
                 if (code && url && !code.toLowerCase().includes('barcode')) {
                     if (url.toLowerCase().startsWith('www.')) url = 'https://' + url;
                     barcodeMap[code] = url;
@@ -245,64 +247,83 @@
             document.getElementById('result').innerHTML = "Δεν βρέθηκαν δεδομένα!";
         }
 
-        function startScanner() {
+        function initScanner() {
             document.getElementById('start-btn').style.display = "none";
-            document.getElementById('interactive').style.display = "block";
             document.getElementById('result').style.color = "#2c3e50";
-            document.getElementById('result').innerText = "Ανάβει η κάμερα...";
+            document.getElementById('result').innerText = "Αναζήτηση καμερών συσκευής...";
 
-            // Αρχικοποίηση του QuaggaJS
-            Quagga.init({
-                inputStream: {
-                    name: "Live",
-                    type: "LiveStream",
-                    target: document.querySelector('#interactive'),
-                    constraints: {
-                        width: 640,
-                        height: 480,
-                        facingMode: "environment" // Χρήση της πίσω κάμερας
-                    },
-                },
-                locator: {
-                    patchSize: "medium",
-                    halfSample: true
-                },
-                numOfWorkers: 2,
-                decoder: {
-                    // Δηλώνουμε αυστηρά τύπους γραμμικών barcodes (Code 128 & EAN)
-                    readers: ["code_128_reader", "ean_reader"]
-                },
-                locate: true
-            }, function(err) {
-                if (err) {
+            // Αρχικοποίηση του ZXing Reader για Barcodes (1D)
+            codeReader = new ZXing.BrowserBarcodeReader();
+
+            // Έλεγχος και καταγραφή όλων των καμερών της συσκευής
+            codeReader.getVideoInputDevices()
+                .then((videoInputDevices) => {
+                    const sourceSelect = document.getElementById('videoInputDevices');
+                    
+                    if (videoInputDevices.length >= 1) {
+                        // Προεπιλογή της τελευταίας κάμερας (συνήθως η πίσω στα κινητά)
+                        selectedDeviceId = videoInputDevices[videoInputDevices.length - 1].id;
+                        
+                        // Αν υπάρχουν πάνω από 1 κάμερες, εμφανίζουμε λίστα επιλογής
+                        if (videoInputDevices.length > 1) {
+                            sourceSelect.innerHTML = "";
+                            videoInputDevices.forEach((element) => {
+                                const sourceOption = document.createElement('option');
+                                sourceOption.text = element.label || `Κάμερα ${sourceSelect.length + 1}`;
+                                sourceOption.value = element.id;
+                                if(element.id === selectedDeviceId) sourceOption.selected = true;
+                                sourceSelect.appendChild(sourceOption);
+                            });
+                            sourceSelect.style.display = "inline-block";
+                            
+                            sourceSelect.onchange = () => {
+                                selectedDeviceId = sourceSelect.value;
+                                codeReader.reset();
+                                startDecoding();
+                            };
+                        }
+                        
+                        // Εκκίνηση σκαναρίσματος
+                        startDecoding();
+                    } else {
+                        document.getElementById('result').style.color = "red";
+                        document.getElementById('result').innerText = "Δεν βρέθηκε καμία κάμερα στη συσκευή.";
+                    }
+                })
+                .catch((err) => {
                     document.getElementById('result').style.color = "red";
-                    document.getElementById('result').innerHTML = "Σφάλμα κάμερας: " + err;
-                    return;
-                }
-                Quagga.start();
-                document.getElementById('result').style.color = "green";
-                document.getElementById('result').innerText = "Η κάμερα λειτουργεί. Σκανάρετε!";
-            });
+                    document.getElementById('result').innerHTML = "Σφάλμα δικαιωμάτων κάμερας: <br><small>" + err + "</small>";
+                    console.error(err);
+                });
+        }
 
-            // Όταν εντοπιστεί έγκυρο barcode
-            Quagga.onDetected(function(data) {
-                if (!data || !data.codeResult || !data.codeResult.code) return;
-                
-                const cleanBarcode = data.codeResult.code.trim();
-                
-                // Σταματάμε το scanner για να μην ξανασκανάρει κατά την ανακατεύθυνση
-                Quagga.stop();
-                
-                document.getElementById('result').style.color = "#2c3e50";
-                document.getElementById('result').innerText = `Barcode: ${cleanBarcode}`;
-                
-                if (barcodeMap[cleanBarcode]) {
-                    document.getElementById('result').innerHTML += "<br><span style='color:green;'>Βρέθηκε! Ανακατεύθυνση...</span>";
-                    window.location.href = barcodeMap[cleanBarcode];
-                } else {
-                    document.getElementById('result').innerHTML += "<br><span style='color:red;'>Δεν υπάρχει στη λίστα!</span>";
-                    // Επανεκκίνηση μετά από 3 δευτερόλεπτα αν δεν βρέθηκε στη λίστα
-                    setTimeout(() => { Quagga.start(); }, 3000);
+        function startDecoding() {
+            document.getElementById('video-container').style.display = "block";
+            document.getElementById('result').style.color = "green";
+            document.getElementById('result').innerText = "Η κάμερα είναι ζωντανή! Σκανάρετε.";
+
+            // Συνεχές σκανάρισμα από την επιλεγμένη κάμερα
+            codeReader.decodeFromInputVideoDeviceContinuous(selectedDeviceId, 'video', (result, err) => {
+                if (result) {
+                    const cleanBarcode = result.text.trim();
+                    
+                    // Σταμάτημα της κάμερας αμέσως μετά την επιτυχία
+                    codeReader.reset();
+                    
+                    document.getElementById('result').style.color = "#2c3e50";
+                    document.getElementById('result').innerText = `Barcode: ${cleanBarcode}`;
+                    
+                    if (barcodeMap[cleanBarcode]) {
+                        document.getElementById('result').innerHTML += "<br><span style='color:green;'>Βρέθηκε! Ανακατεύθυνση...</span>";
+                        window.location.href = barcodeMap[cleanBarcode];
+                    } else {
+                        document.getElementById('result').innerHTML += "<br><span style='color:red;'>Δεν υπάρχει στη λίστα!</span>";
+                        // Επανεκκίνηση μετά από 3 δευτερόλεπτα αν δεν υπάρχει
+                        setTimeout(() => { startDecoding(); }, 3000);
+                    }
+                }
+                if (err && !(err instanceof ZXing.NotFoundException)) {
+                    console.error(err);
                 }
             });
         }
