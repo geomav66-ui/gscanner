@@ -239,8 +239,7 @@
             document.getElementById('result').innerHTML = "Δεν βρέθηκαν δεδομένα στο Excel!";
         }
 
-        function startScanner() {
-            // Κρύβουμε το κουμπί και εμφανίζουμε το πλαίσιο της κάμερας
+                function startScanner() {
             document.getElementById('start-btn').style.display = "none";
             document.getElementById('reader').style.display = "block";
             document.getElementById('result').style.color = "#2c3e50";
@@ -248,23 +247,38 @@
 
             const html5QrCode = new Html5Qrcode("reader");
             
+            // ΝΕΕΣ ΒΕΛΤΙΩΜΕΝΕΣ ΡΥΘΜΙΣΕΙΣ ΓΙΑ EAN-128
             const config = { 
-                fps: 10, 
-                qrbox: { width: 280, height: 160 },
-                // CRITICAL FIX: Απενεργοποίηση του πειραματικού detector που κολλάει στα κινητά
-                experimentalFeatures: { useBarCodeDetectorIfSupported: false }
+                fps: 15, // Αυξάνουμε τα frames για πιο γρήγορο "πιάσιμο"
+                qrbox: function(viewfinderWidth, viewfinderHeight) {
+                    // Κάνουμε το κουτί δυναμικό, πολύ φαρδύ και στενό (ιδανικό για μακρόστενα barcodes)
+                    const width = Math.floor(viewfinderWidth * 0.85); // Πιάνει το 85% του πλάτους της οθόνης
+                    const height = Math.floor(viewfinderHeight * 0.25); // Μόνο το 25% του ύψους
+                    return { width: width, height: height };
+                },
+                aspectRatio: 1.777778, // Αναγκαστικό 16:9 για καλύτερη ανάλυση
+                experimentalFeatures: { 
+                    useBarCodeDetectorIfSupported: false 
+                }
             };
 
-            // Άνοιγμα της πίσω κάμερας
+            // Εκκίνηση με βελτιωμένες οδηγίες κάμερας
             html5QrCode.start(
-                { facingMode: "environment" }, 
+                { 
+                    facingMode: "environment",
+                    // Ζητάμε από το κινητό τη μέγιστη δυνατή εστίαση και ανάλυση
+                    advanced: [{
+                        focusMode: "continuous", // Συνεχής αυτόματη εστίαση
+                        whiteBalanceMode: "continuous"
+                    }]
+                }, 
                 config, 
                 onScanSuccess,
                 (errorMessage) => { /* Παράκαμψη λαθών εστίασης */ }
             )
             .then(() => {
                 document.getElementById('result').style.color = "green";
-                document.getElementById('result').innerText = "Η κάμερα είναι ζωντανή! Σκανάρετε το Barcode.";
+                document.getElementById('result').innerText = "Η κάμερα είναι ζωντανή! Κρατήστε το κινητό λίγο πιο μακριά αν θολώνει.";
             })
             .catch(err => {
                 document.getElementById('result').style.color = "red";
